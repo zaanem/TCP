@@ -1,0 +1,154 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ServerApplication" Id="{27aa47e1-a593-472a-a33b-33b9fe6bd70e}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Comp A TCP Server*)
+FUNCTION_BLOCK FB_ServerApplication
+VAR_IN_OUT
+	fbTx 			: FB_FrameFifo;(* TX fifo *)
+	fbRx 			: FB_FrameFifo;(* RX fifo *)
+	fbLog			: FB_LogFifo;(* Log message fifo *)
+END_VAR
+VAR
+	stToClient		: ST_ApplicationBinaryData; (* Tx user data *)
+	stFromClient	: ST_ApplicationBinaryData; (* Rx user data *)
+	stTxFrame		: ST_BinaryFrame;(* Tx frame buffer (inclusive header) *)
+	stRxFrame		: ST_BinaryFrame;(* Rx frame buffer (inclusive header) *)
+	state: INT := 0;
+	CompBData: LREAL;(* 8 byte *)
+	nStateTPC: INT := 0;
+END_VAR
+VAR PERSISTENT
+	ToggleCount: INT := 0;
+END_VAR
+VAR CONSTANT
+	nToogleCycle: INT := 5;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[REPEAT		
+	(*TPC States* - State Machine Implementation*)	
+	CASE nStateTPC OF
+	0:(* CLOSED STATE *)
+	    stFromClient := fbRx.stGet;  (*RECEIVE SYN*)
+		IF ( stFromClient.fpos  <> 0) THEN
+			stFromClient.fpos :=HEXSTR_TO_DATA('000007D0', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) ); (* SEND SYN -ACK*)
+			fbTx.AddTail( stPut := stToClient );
+			stFromClient.fpos := HEXSTR_TO_DATA('000003E9', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) );
+			fbTx.AddTail( stPut := stToClient );			
+			state:=1;
+		ELSE
+			state:=0;
+		END_IF
+		
+	1: (* SYN RECEIVED STATE*)
+		stFromClient := fbRx.stGet;
+		IF (stFromClient.fpos =  HEXSTR_TO_DATA('000007D1', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) )) THEN (*RECEIVED ACK *)
+			state:=2;
+		ELSE
+			state:=1;
+		END_IF
+		
+	2: (* ESTABLISHED STATE*)
+		 (* Toogle server data every 5*100 ms*)
+		 IF(ToggleCount< nToogleCycle) THEN
+			stToClient.fpos:=HEXSTR_TO_DATA('88888888', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) );  
+			ToggleCount := ToggleCount +1 ;
+		 ELSE
+			stToClient.fpos:=HEXSTR_TO_DATA('88888889', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) );
+			ToggleCount := 0;
+		 END_IF
+		 fbTx.AddTail( stPut := stToClient ); (* send CompA server data*)
+		 stFromClient := fbRx.stGet; (* received ACK*)
+		 IF ( stFromClient.fpos = HEXSTR_TO_DATA('000007D1', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) ) ) THEN
+			 stFromClient := fbRx.stGet; (* get CompB Client data*)
+			 IF ( stFromClient.fpos <> 0 )THEN 
+                CompBData :=  stFromClient.fpos;   
+				stToClient.fpos :=  HEXSTR_TO_DATA('000007D1', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) ); (*send ACK*)
+				fbTx.AddTail( stPut := stToClient );
+			 END_IF
+		  END_IF
+		  
+		  stFromClient := fbRx.stGet; (* received FIN*)	  
+		  IF ( stFromClient.fpos=  HEXSTR_TO_DATA('000003E8', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) ) )THEN    (* send ACK for client data *)
+				stToClient.fpos :=  HEXSTR_TO_DATA('000003E9', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) );
+				fbTx.AddTail( stPut := stToClient );
+				state:=3;
+		  ELSE
+			  state:=2;
+		  END_IF
+	
+	3:  (* CLOSE WAIT STATE*)
+		 stToClient.fpos := HEXSTR_TO_DATA('000003E9', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) );   (* send FIN  for close *)
+		 fbTx.AddTail( stPut := stToClient );
+		 state :=4;
+	
+	
+	4:  (* LAST ACK STATE*)
+		 stFromClient := fbRx.stGet;
+		 IF (stFromClient.fpos = HEXSTR_TO_DATA('000005BF', ADR( stFromClient.fpos ), SIZEOF( stFromClient.fpos ) ) ) THEN
+			state:=0;	 
+		 END_IF
+	
+	END_CASE
+	
+UNTIL NOT fbRx.bOk
+END_REPEAT
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_ServerApplication">
+      <LineId Id="4" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="136" Count="2" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="66" Count="2" />
+      <LineId Id="70" Count="1" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="93" Count="1" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="96" Count="6" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="107" Count="1" />
+      <LineId Id="110" Count="2" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

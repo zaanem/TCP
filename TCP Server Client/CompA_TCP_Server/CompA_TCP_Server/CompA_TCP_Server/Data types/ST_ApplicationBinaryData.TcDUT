@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_ApplicationBinaryData" Id="{1d93b951-d881-4acd-a086-da3415ea1d6d}">
+    <Declaration><![CDATA[(* Simple binary user data (8 byte aligned) *)
+TYPE ST_ApplicationBinaryData :
+STRUCT
+	fPos		:  LREAL;(* 8 byte *)
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>
